@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Consulate · Bookings Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#f7f8fb;--card:#fff;--ink:#0f172a;--muted:#64748b;--line:#e5e7eb;
+    --accent:#2563eb;--accent2:#10b981;--warn:#f59e0b;--danger:#ef4444;--violet:#8b5cf6;
+    --shadow:0 1px 2px rgba(15,23,42,.04),0 1px 3px rgba(15,23,42,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif}
+  a{color:var(--accent);text-decoration:none;cursor:pointer}
+  a:hover{text-decoration:underline}
+  header{background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+  .nav{max-width:1400px;margin:0 auto;padding:14px 24px;display:flex;align-items:center;gap:24px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:700}
+  .brand .logo{width:32px;height:32px;border-radius:8px;background:linear-gradient(135deg,#2563eb,#8b5cf6);display:grid;place-items:center;color:#fff;font-size:16px}
+  .tabs{display:flex;gap:6px;margin-left:auto}
+  .tabs button{background:transparent;border:1px solid transparent;padding:8px 14px;border-radius:8px;font-size:14px;cursor:pointer;color:var(--muted);font-weight:500}
+  .tabs button.active{background:#eef2ff;color:var(--accent);border-color:#dbeafe}
+  .tabs button:hover:not(.active){background:#f1f5f9;color:var(--ink)}
+  main{max-width:1400px;margin:0 auto;padding:24px}
+  h1{font-size:28px;margin:0 0 4px}
+  h2{font-size:18px;margin:0 0 12px}
+  .sub{color:var(--muted);font-size:13px}
+  .row{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:18px;gap:12px;flex-wrap:wrap}
+  .filters{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:18px;box-shadow:var(--shadow)}
+  .filters select,.filters input{border:1px solid var(--line);padding:8px 10px;border-radius:8px;background:#fff;font-size:13px;min-width:130px;color:var(--ink)}
+  .filters .reset{margin-left:auto;background:#fff;border:1px solid var(--line);padding:8px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  .filters .reset:hover{background:#f1f5f9}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+  .kpis2{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow);position:relative;cursor:pointer;transition:transform .1s,border-color .1s}
+  .kpi:hover{border-color:#cbd5e1}
+  .kpi .label{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .kpi .value{font-size:24px;font-weight:700;margin-top:6px}
+  .kpi .hint{font-size:11px;color:var(--muted);margin-top:4px}
+  .kpi .ico{position:absolute;top:14px;right:14px;color:var(--muted);font-size:14px}
+  .grid3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .grid3b{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:18px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:var(--shadow)}
+  .card h3{margin:0 0 12px;font-size:14px;font-weight:600}
+  .chart-wrap{position:relative;height:260px}
+  .chart-wrap.tall{height:320px}
+  .listcard{display:flex;flex-direction:column;gap:6px}
+  .listrow{display:flex;justify-content:space-between;align-items:center;padding:10px;border-radius:8px;background:#fafbfc;border:1px solid #f1f5f9;cursor:pointer;transition:background .1s}
+  .listrow:hover{background:#eef2ff}
+  .listrow .l-name{font-weight:600;font-size:13px}
+  .listrow .l-sub{font-size:11px;color:var(--muted);margin-top:2px}
+  .listrow .l-val{font-weight:700;text-align:right;font-size:13px}
+  .listrow .l-earn{font-size:11px;color:var(--accent2);text-align:right}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  thead th{text-align:left;padding:10px 8px;background:#fafbfc;border-bottom:1px solid var(--line);font-weight:600;color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  tbody td{padding:10px 8px;border-bottom:1px solid #f1f5f9}
+  tbody tr:hover{background:#fafbfc;cursor:pointer}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .b-ok{background:#dcfce7;color:#166534}
+  .b-no{background:#fee2e2;color:#991b1b}
+  .b-other{background:#e5e7eb;color:#374151}
+  .pager{display:flex;justify-content:center;align-items:center;gap:8px;padding:12px}
+  .pager button{background:#fff;border:1px solid var(--line);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px}
+  .pager button:disabled{opacity:.5;cursor:not-allowed}
+  .upload{display:none}
+  .upbtn{background:var(--accent);color:#fff;border:0;padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+  .upbtn:hover{background:#1e40af}
+  .ghost{background:#fff;border:1px solid var(--line);padding:8px 14px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500}
+  .ghost:hover{background:#f1f5f9}
+  .crumb{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .crumb a{color:var(--accent)}
+  .pill{display:inline-block;padding:2px 8px;border-radius:6px;background:#eef2ff;color:var(--accent);font-size:11px;font-weight:600;margin-left:6px}
+  .empty{padding:40px;text-align:center;color:var(--muted)}
+  .breakdown{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .bd{display:flex;justify-content:space-between;padding:8px 10px;background:#fafbfc;border-radius:6px;font-size:12px}
+  .bd b{font-weight:700}
+  .modalbg{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modalbg.show{display:flex}
+  .modal{background:#fff;border-radius:12px;max-width:900px;width:100%;max-height:90vh;overflow:auto;padding:24px}
+  .modal h2{display:flex;align-items:center;gap:10px}
+  .closex{background:transparent;border:0;font-size:24px;cursor:pointer;color:var(--muted);float:right}
+  .kvs{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:13px}
+  .kvs div{display:flex;justify-content:space-between;border-bottom:1px dashed #f1f5f9;padding:6px 0}
+  .kvs span:first-child{color:var(--muted)}
+  .kvs span:last-child{font-weight:600;text-align:right}
+  .toast{position:fixed;bottom:24px;right:24px;background:#0f172a;color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.2);opacity:0;transform:translateY(10px);transition:.2s;z-index:200}
+  .toast.show{opacity:1;transform:translateY(0)}
+  @media(max-width:980px){.kpis,.kpis2{grid-template-columns:repeat(2,1fr)}.grid3,.grid3b,.grid2{grid-template-columns:1fr}.tabs{flex-wrap:wrap}}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="brand"><div class="logo">✈</div>Consulate · Bookings</div>
+    <div class="tabs">
+      <button data-tab="overview" class="active">Overview</button>
+      <button data-tab="agencies">Agencies</button>
+      <button data-tab="airlines">Airlines</button>
+      <button data-tab="agents">Agents</button>
+      <button data-tab="bookings">Bookings</button>
+    </div>
+    <button class="ghost" onclick="exportCsv()">Export CSV</button>
+    <input type="file" id="fileinp" class="upload" accept=".csv,.xlsx,.xls" />
+    <button class="upbtn" onclick="document.getElementById('fileinp').click()">↑ Upload</button>
+  </div>
+</header>
+
+<main>
+  <!-- ============ OVERVIEW ============ -->
+  <section data-view="overview">
+    <div class="row">
+      <div>
+        <h1>Consulate overview</h1>
+        <div class="sub" id="metaSub">Loading…</div>
+      </div>
+      <div class="sub" id="lastUp"></div>
+    </div>
+
+    <div class="filters" id="filters">
+      <select id="fDate">
+        <option value="all">All time</option>
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+      <select id="fTrip"><option value="all">All trips</option><option>Domestic</option><option>International</option></select>
+      <select id="fCat"><option value="all">FSC + LCC</option><option>FSC</option><option>LCC</option></select>
+      <select id="fStatus"><option value="all">Any status</option><option>Confirmed</option><option>Cancelled</option></select>
+      <select id="fAirline"><option value="all">All airlines</option></select>
+      <select id="fAgency"><option value="all">All agencies</option></select>
+      <input id="fSearch" placeholder="Search PNR / name / agent…"/>
+      <button class="reset" onclick="resetFilters()">↻ Reset</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="label">Gross Revenue</div><div class="value" id="kGross">–</div><div class="ico">$</div></div>
+      <div class="kpi"><div class="label">Net Amount</div><div class="value" id="kNet">–</div><div class="ico">₹</div></div>
+      <div class="kpi"><div class="label">Total Markup</div><div class="value" id="kMarkup">–</div><div class="ico">↑</div></div>
+      <div class="kpi"><div class="label">Earnings</div><div class="value" id="kEarn">–</div><div class="hint">commission + incentive + PLB</div></div>
+      <div class="kpi"><div class="label">Avg Ticket Value</div><div class="value" id="kAvg">–</div><div class="ico">📋</div></div>
+    </div>
+    <div class="kpis2">
+      <div class="kpi"><div class="label">Bookings</div><div class="value" id="kBkg">–</div><div class="ico">🎟</div></div>
+      <div class="kpi"><div class="label">Passengers</div><div class="value" id="kPax">–</div><div class="ico">👥</div></div>
+      <div class="kpi"><div class="label">Pax Mix</div><div class="value" id="kPaxMix">–</div><div class="hint">Adult / Child / Infant</div></div>
+      <div class="kpi"><div class="label">Segments</div><div class="value" id="kSeg">–</div><div class="ico">🌐</div></div>
+      <div class="kpi"><div class="label">Confirmed / Cancelled</div><div class="value" id="kStatus">–</div></div>
+    </div>
+
+    <div class="grid3">
+      <div class="card"><h3>Bookings & revenue trend</h3><div class="chart-wrap"><canvas id="chTrend"></canvas></div></div>
+      <div class="card"><h3>Domestic vs International</h3><div class="chart-wrap"><canvas id="chTrip"></canvas></div></div>
+      <div class="card"><h3>FSC vs LCC</h3><div class="chart-wrap"><canvas id="chCat"></canvas></div></div>
+    </div>
+
+    <div class="grid3b">
+      <div class="card"><h3>Top agencies</h3><div class="listcard" id="topAgencies"></div></div>
+      <div class="card"><h3>Top airlines</h3><div class="listcard" id="topAirlines"></div></div>
+      <div class="card"><h3>Top booked-by agents</h3><div class="listcard" id="topAgents"></div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card"><h3>Markup composition</h3><div class="chart-wrap"><canvas id="chMarkup"></canvas></div></div>
+      <div class="card"><h3>Ancillary revenue mix</h3><div class="chart-wrap"><canvas id="chAnc"></canvas></div></div>
+    </div>
+
+    <div class="card">
+      <div class="row"><h2>Recent bookings <span class="pill" id="recCount">0</span></h2></div>
+      <table id="tblRecent">
+        <thead><tr><th>Booked</th><th>PNR</th><th>Agency</th><th>Airline · Flight</th><th>Sector</th><th>Pax</th><th>Gross</th><th>Markup</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="pager" id="pager"></div>
+    </div>
+  </section>
+
+  <!-- ============ DRILL-DOWN VIEW ============ -->
+  <section data-view="drill" style="display:none">
+    <div class="crumb"><a onclick="showView('overview')">← Back to overview</a></div>
+    <div class="row"><div><h1 id="drillTitle">–</h1><div class="sub" id="drillSub"></div></div></div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">Gross</div><div class="value" id="dGross">–</div></div>
+      <div class="kpi"><div class="label">Net</div><div class="value" id="dNet">–</div></div>
+      <div class="kpi"><div class="label">Markup</div><div class="value" id="dMarkup">–</div></div>
+      <div class="kpi"><div class="label">Earnings</div><div class="value" id="dEarn">–</div></div>
+      <div class="kpi"><div class="label">Bookings · Pax</div><div class="value" id="dBkg">–</div></div>
+    </div>
+    <div class="grid2">
+      <div class="card"><h3>Booking trend</h3><div class="chart-wrap"><canvas id="dTrend"></canvas></div></div>
+      <div class="card"><h3>Breakdown</h3><div id="dBreakdown" class="breakdown"></div></div>
+    </div>
+    <div class="card">
+      <h2>Bookings <span class="pill" id="dCount">0</span></h2>
+      <table id="dTbl">
+        <thead><tr><th>Booked</th><th>PNR</th><th>Agency</th><th>Airline · Flight</th><th>Sector</th><th>Pax</th><th>Gross</th><th>Markup</th><th>Status</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="pager" id="dPager"></div>
+    </div>
+  </section>
+
+  <!-- ============ LIST VIEWS (agencies/airlines/agents/bookings) ============ -->
+  <section data-view="list" style="display:none">
+    <div class="row"><div><h1 id="listTitle">–</h1><div class="sub" id="listSub"></div></div></div>
+    <div class="card">
+      <table id="listTbl">
+        <thead id="listHead"></thead>
+        <tbody></tbody>
+      </table>
+      <div class="pager" id="listPager"></div>
+    </div>
+  </section>
+</main>
+
+<!-- Booking detail modal -->
+<div class="modalbg" id="modal"><div class="modal">
+  <button class="closex" onclick="closeModal()">×</button>
+  <h2 id="mTitle">Booking</h2>
+  <div class="sub" id="mSub" style="margin-bottom:14px"></div>
+  <div class="kvs" id="mKvs"></div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Embedded sample CSV -->
+<script id="sampleCsv" type="text/csv">Booked Date,Name,CID,Airname,category,SYSTEM PNR,BACKEND PNR,GDS PNR,13 DIGIT NO,STATUS,book type,booked by,a/c/i,First Name,Last Name,SEC,Flight No,TRIP,Travel Type,Mode of payment,Class,OFFICE ID SUPPLIER,Airline Code,Date of Travel,BFARE,YQ Fare,Other Taxes,COMMISSION,Incentive,SC TAX,SF,GST On SF,Agent Penalty,Cancellation Markup,Net Amount,Reschedule Markup,Markup,Hidden Markup,SSR Amount,Supplier,K3,Transaction Fee,Meals Amount,Baggage Amount,Seat Amount,WCHR Amount,OKTBD Amount,SSR Markup,Reschedule Charges,Supplier Penalty,PLB,Special Markup,Gross Amount,Currency,No of Segment
+,,,AirIndia,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 15:52,RMR Trip Travel [TSCOK0300101],TSCOK0300101,AirIndia,FSC,TT10HC0034,ARDUMMY40351977,CrDUMMY40351977,DUMMY40351977,Confirmed,Indesk Booking,Kulasekar,Adult,NIRANJAN,KUMAR,DEL-MAA 08/06/2026,AI 2885,OneWay,Domestic,Topup Account,T,RSMAA040163101,AI,08-06-2026,"5,481.00",0,852.8,0,0,0,0,0,0,0,"6,333.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,333.80",INR,1
+,,,AirIndia,,,,,,,,,,,,,,,,,,,,,"5,481.00",0,852.8,0,0,0,0,0,0,0,"6,333.80",0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,"6,333.80",,1
+,,,AirIndia Express,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 13:45,AgentAirOps [TSMAA0300105],TSMAA0300105,AirIndia Express,LCC,TT10HC0003,ARDUMMY36992282,CrDUMMY36992282,DUMMY36992282,Confirmed,Indesk Booking,AirlineOps,Adult,ROHIT,KUMAR,MAA-BLR-BLR-HYD 14/05/2026-14/05/2026,IX 1487-IX 1250,OneWay,Domestic,Topup Account,G-G,RSMAA040163101,I5,14/05/2026-14/05/2026,"3,038.00",0,"1,140.80",0,0,0,0,0,0,0,"4,178.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,178.80",INR,2
+10-03-2026 14:13,Summer Travels [TSDEL0300101],TSDEL0300101,AirIndia Express,LCC,TT10HC0009,ARDUMMY67552373,CrDUMMY67552373,DUMMY67552373,Confirmed,Indesk Booking,Hari,Adult,KARTHIKUMAR,RET,TRV-BLR-BLR-NMI 16/04/2026-17/04/2026,IX 2983-IX 2914,OneWay,Domestic,Topup Account,G-G,RSMAA040163101,I5,16/04/2026-17/04/2026,"3,574.00",0,"2,107.80",0,0,0,0,0,0,0,"5,681.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,681.80",INR,2
+10-03-2026 14:59,Demo Agent [TSERD0300101],TSERD0300101,AirIndia Express,LCC,TT10HC0015,ARDUMMY19402338,CrDUMMY19402338,DUMMY19402338,Confirmed,Indesk Booking,UrAdministrator,Adult,SRI,RAM,BOM-GOX-GOX-HYD 27/05/2026-27/05/2026,IX 1163-IX 2938,OneWay,Domestic,Topup Account,K-W,RSMAA040163101,I5,27/05/2026-27/05/2026,"4,810.00",0,983.8,0,0,0,0,0,0,0,"5,793.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,793.80",INR,2
+10-03-2026 15:24,AgentAirOps [TSMAA0300105],TSMAA0300105,AirIndia Express,LCC,TT10HC0017,ARDUMMY17997612,CrDUMMY17997612,DUMMY17997612,Confirmed,Indesk Booking,Demo,Adult,ROHIT,KUMAR,MAA-BLR-BLR-HYD 14/05/2026-14/05/2026,IX 2975-IX 2935,OneWay,Domestic,Topup Account,G-G,RSMAA040163101,I5,14/05/2026-14/05/2026,"3,038.00",0,"1,140.80",0,0,0,0,0,0,0,"4,178.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,178.80",INR,2
+10-03-2026 15:36,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,AirIndia Express,LCC,TT10HC0021,ARDUMMY73851092,CrDUMMY73851092,DUMMY73851092,Confirmed,Indesk Booking,UrAdministrator,Adult,NANDHA,KUMAR,DEL-NMI 31/03/2026,IX 1463,OneWay,Domestic,Topup Account,X,RSMAA040163101,I5,31-03-2026,"3,913.00",0,"1,097.80",0,0,0,0,0,0,0,"5,010.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,010.80",INR,1
+10-03-2026 15:47,fly travels [TSMAA0300104],TSMAA0300104,AirIndia Express,LCC,TT10HC0030,ARDUMMY25797718,CrDUMMY25797718,DUMMY25797718,Confirmed,Indesk Booking,Kulasekar,Adult,KULASEKAR,R,DEL-NMI 31/03/2026,IX 1463,OneWay,Domestic,Topup Account,X,RSMAA040163101,I5,31-03-2026,"3,913.00",0,"1,097.80",0,0,0,0,0,0,0,"5,010.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,010.80",INR,1
+10-03-2026 16:08,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,AirIndia Express,LCC,TT10HC0046,ARDUMMY17217737,CrDUMMY17217737,DUMMY17217737,Confirmed,Indesk Booking,UrAdministrator,Adult,RAJA,S,MAA-BLR-BLR-NMI 28/03/2026-28/03/2026,IX 2971-IX 1639,OneWay,Domestic,Topup Account,H-H,RSMAA040163101,I5,28/03/2026-28/03/2026,"3,177.00",0,"1,467.80",0,0,0,0,0,0,0,"4,644.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,644.80",INR,2
+10-03-2026 16:09,fly travels [TSMAA0300104],TSMAA0300104,AirIndia Express,LCC,TT10HC0048,ARDUMMY1004536,CrDUMMY1004536,DUMMY1004536,Confirmed,Indesk Booking,Rajlakshmi,Adult,NANDHA,KUMAR,BOM-DEL 12/03/2026,IX 1282,OneWay,Domestic,Topup Account,G,RSMAA040163101,I5,12-03-2026,"5,063.00",0,957.8,0,0,0,0,0,0,0,"6,020.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,020.80",INR,1
+10-03-2026 16:12,TravelFreez [TSMAA0300106],TSMAA0300106,AirIndia Express,LCC,TT10HC0050,ARDUMMY59273845,CrDUMMY59273845,DUMMY59273845,Confirmed,Indesk Booking,Harish,Adult,SIVA,KUMAR,PNQ-COK 23/04/2026,IX 2739,OneWay,Domestic,Topup Account,G,RSMAA040163101,I5,23-04-2026,"4,188.00",0,"1,065.80",0,0,0,0,0,0,0,"5,253.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,253.80",INR,2
+10-03-2026 16:12,TravelFreez [TSMAA0300106],TSMAA0300106,AirIndia Express,LCC,TT10HC0050,ARDUMMY59273845,CrDUMMY59273845,DUMMY59273845,Confirmed,Indesk Booking,Harish,Child,RAJESH,SI,PNQ-COK 23/04/2026,IX 2739,OneWay,Domestic,Topup Account,G,RSMAA040163101,I5,23-04-2026,"4,188.00",0,"1,065.80",0,0,0,0,0,0,0,"5,253.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,253.80",INR,2
+10-03-2026 16:44,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,AirIndia Express,LCC,TT10HC0055,ARDUMMY42125933,CrDUMMY42125933,DUMMY42125933,Confirmed,Indesk Booking,UrAdministrator,Adult,CHAKRAVARTHY,DEVA,BOM-JAI-JAI-DEL 28/03/2026-28/03/2026,IX 1280-IX 1289,OneWay,Domestic,Topup Account,G-G,RSMAA040163101,I5,28/03/2026-28/03/2026,"4,739.00",0,"1,045.80",0,0,118,0,0,0,0,"6,102.80",0,200,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,102.80",INR,2
+,,,AirIndia Express,,,,,,,,,,,,,,,,,,,,,"43,641.00",0,"13,171.80",0,0,118,0,0,0,0,"57,130.80",0,200,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,"57,130.80",,19
+,,,Akasa Air,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Akasa Air,LCC,TT10HC0005,ARDUMMY83865424,CrDUMMY83865424,DUMMY83865424,Confirmed,Indesk Booking,Harish,Adult,NAVEEN,KUMAR,DEL-BLR 17/04/2026,QP 1824,RoundTrip,Domestic,Topup Account,W6,RSMAA040163101,QP,17-04-2026,"5,314.00",0,796.8,0,0,0,0,0,0,0,"6,560.80",0,0,0,450,BC API,0,0,0,0,450,0,0,0,0,0,0,0,"6,560.80",INR,3
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Akasa Air,LCC,TT10HC0005,ARDUMMY83865424,CrDUMMY83865424,DUMMY83865424,Confirmed,Indesk Booking,Harish,Adult,PRAVEEN,KUMAR,DEL-BLR 17/04/2026,QP 1824,RoundTrip,Domestic,Topup Account,W6,RSMAA040163101,QP,17-04-2026,"5,314.00",0,796.8,0,0,0,0,0,0,0,"6,560.80",0,0,0,450,BC API,0,0,0,0,450,0,0,0,0,0,0,0,"6,560.80",INR,3
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Akasa Air,LCC,TT10HC0005,ARDUMMY83865424,CrDUMMY83865424,DUMMY83865424,Confirmed,Indesk Booking,Harish,Child,SANTHOSH,KUMAR,DEL-BLR 17/04/2026,QP 1824,RoundTrip,Domestic,Topup Account,W6,RSMAA040163101,QP,17-04-2026,"5,314.00",0,796.8,0,0,0,0,0,0,0,"6,560.80",0,0,0,450,BC API,0,0,0,0,450,0,0,0,0,0,0,0,"6,560.80",INR,3
+10-03-2026 14:22,Demo Agent [TSERD0300101],TSERD0300101,Akasa Air,LCC,TT10HC0012,ARDUMMY68001209,CrDUMMY68001209,DUMMY68001209,Confirmed,Indesk Booking,UrAdministrator,Adult,SANJAY,A,DEL-HYD 30/04/2026,QP 1406,OneWay,Domestic,Topup Account,W6,RSMAA040163101,QP,30-04-2026,"4,076.00",0,734.8,203.8,0,0,50,0,0,0,"4,667.00",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,870.80",INR,1
+10-03-2026 14:25,Niranj4n Agentt [TSMAA0300108],TSMAA0300108,Akasa Air,LCC,TT10HC0013,ARDUMMY53928693,CrDUMMY53928693,DUMMY53928693,Confirmed,Indesk Booking,Niran7an,Adult,NIRA,NJAN,BOM-DEL 30/04/2026,QP 1127,OneWay,Domestic,Topup Account,W6,RSMAA040163101,QP,30-04-2026,"4,628.00",0,883.8,231.4,0,0,50,0,0,0,"5,340.40",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,571.80",INR,1
+10-03-2026 15:27,Demo Agent [TSERD0300101],TSERD0300101,Akasa Air,LCC,TT10HC0019,ARDUMMY59908869,CrDUMMY59908869,DUMMY59908869,Confirmed,Indesk Booking,Demo,Adult,RAM,KUMAR,BOM-DEL 19/03/2026,QP 1916,OneWay,Domestic,Topup Account,R8,RSMAA040163101,QP,19-03-2026,"5,219.00",0,911.8,260.95,0,0,50,0,0,0,"6,579.85",0,10,0,650,BC API,0,0,0,0,650,0,0,0,0,0,0,0,"6,840.80",INR,1
+10-03-2026 15:43,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,Akasa Air,LCC,TT10HC0027,ARDUMMY31061905,CrDUMMY31061905,DUMMY31061905,Confirmed,Indesk Booking,Rajlakshmi,Adult,ARJUN,KRISHNA,BOM-MAA 10/04/2026,QP 1145,OneWay,Domestic,Topup Account,ZC,RSMAA040163101,QP,10-04-2026,"3,091.00",0,739.8,154.55,0,0,50,0,0,0,"3,736.25",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"3,890.80",INR,1
+10-03-2026 15:45,Niche Focus [TSMAA0300107],TSMAA0300107,Akasa Air,LCC,TT10HC0028,ARDUMMY5631474,CrDUMMY5631474,DUMMY5631474,Confirmed,Indesk Booking,Kulasekar,Adult,KULASEKAR,R,BOM-DEL 31/03/2026,QP 1127,OneWay,Domestic,Topup Account,Z5,RSMAA040163101,QP,31-03-2026,"4,230.00",0,863.8,211.5,0,0,50,0,0,0,"4,942.30",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,153.80",INR,1
+10-03-2026 15:53,RMR Trip Travel [TSCOK0300101],TSCOK0300101,Akasa Air,LCC,TT10HC0036,ARDUMMY63095547,CrDUMMY63095547,DUMMY63095547,Confirmed,Indesk Booking,Ramya,Adult,RAM,KUMAR,BOM-DEL 30/04/2026,QP 1127,OneWay,Domestic,Topup Account,W6,RSMAA040163101,QP,30-04-2026,"4,628.00",0,883.8,231.4,0,0,50,0,0,0,"26,440.40",0,10,0,"21,100.00",BC API,0,0,250,"19,500.00",650,0,0,0,0,0,0,0,"26,671.80",INR,1
+10-03-2026 15:53,TravelFreez [TSMAA0300106],TSMAA0300106,Akasa Air,LCC,TT10HC0038,ARDUMMY66087734,CrDUMMY66087734,DUMMY66087734,Confirmed,Indesk Booking,Harish,Adult,CHERAN,KUMAR,AMD-PNQ 24/04/2026,QP 1911,RoundTrip,Domestic,Topup Account,W6,RSMAA040163101,QP,24-04-2026,"2,118.00",0,"1,192.80",105.9,0,0,50,0,0,0,"3,264.90",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"3,370.80",INR,1
+10-03-2026 15:56,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,Akasa Air,LCC,TT10HC0040,ARDUMMY59078654,CrDUMMY59078654,DUMMY59078654,Confirmed,Indesk Booking,UrAdministrator,Adult,RAJ,ESAKI,BOM-DEL 29/03/2026,QP 1825,OneWay,Domestic,Topup Account,Z4,RSMAA040163101,QP,29-03-2026,"4,564.00",0,879.8,228.2,0,0,50,0,0,0,"5,275.60",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,503.80",INR,1
+10-03-2026 15:59,AgentAirOps [TSMAA0300105],TSMAA0300105,Akasa Air,LCC,TT10HC0043,ARDUMMY60752769,CrDUMMY60752769,DUMMY60752769,Confirmed,Indesk Booking,Rajlakshmi,Adult,SUNDAR,RAJAN,BOM-BLR 20/03/2026,QP 1539,OneWay,Domestic,Topup Account,ZB,RSMAA040163101,QP,20-03-2026,"3,215.00",0,745.8,160.75,0,0,50,0,0,0,"3,860.05",0,10,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,020.80",INR,1
+,,,Akasa Air,,,,,,,,,,,,,,,,,,,,,"51,711.00",0,"10,226.60","1,788.45",0,0,450,0,0,0,"83,789.15",0,90,0,"23,100.00",,0,0,250,"19,500.00","2,650.00",0,0,0,0,0,0,0,"85,577.60",,18
+,,,Emirates,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 16:27,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,Emirates,FSC,TT10HC0052,ARDUMMY22251908,CrDUMMY22251908,DUMMY22251908,Confirmed,Indesk Booking,Demo,Adult,ASHUTOSH,KUMAR,BOM-DXB-DXB-BOM 08/04/2026-17/04/2026,EK 503-EK 500,RoundTrip,International,Topup Account,T-T,RSMAA040163101,EK,08/04/2026-17/04/2026,"12,875.00","9,372.00","6,960.80",0,0,0,0,0,0,0,"29,207.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"29,207.80",INR,2
+,,,Emirates,,,,,,,,,,,,,,,,,,,,,"12,875.00","9,372.00","6,960.80",0,0,0,0,0,0,0,"29,207.80",0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,"29,207.80",,2
+,,,Indigo,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 11:41,UrTravelCorporate [TEMAA0000101],TEMAA0000101,Indigo,LCC,TH10HC0001,ARDUMMY83616726,CrDUMMY83616726,DUMMY83616726,Confirmed,Travel Co-ordinator,info_B2E@tesepr.com,Adult,URTRAVEL,CORPORATE,NMI-BLR 23/07/2026,6E 164,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,23-07-2026,"3,790.00",0,"1,210.00",0,0,0,0,0,0,0,"5,000.00",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,000.00",INR,1
+10-03-2026 13:39,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0002,ARDUMMY99766050,CrDUMMY99766050,DUMMY99766050,Confirmed,Indesk Booking,Harish,Adult,HARISH,KUMAR,MAA-NMI 30/04/2026,6E 2133,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,30-04-2026,"3,767.00",0,"1,332.00",0,0,0,0,0,0,0,"30,699.00",0,0,0,"25,600.00",BC API,0,0,400,"24,200.00",550,0,0,0,0,0,0,0,"30,699.00",INR,1
+10-03-2026 13:56,AgentAirOps [TSMAA0300105],TSMAA0300105,Indigo,LCC,TT10HC0006,ARDUMMY49733709,CrDUMMY49733709,DUMMY49733709,Confirmed,Indesk Booking,AirlineOps,Adult,PAWAN,KUMAR,BLR-HYD-HYD-AMD 15/04/2026-15/04/2026,6E 638-6E 216,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,15/04/2026-15/04/2026,"4,365.00",0,"1,272.80",0,0,0,0,0,0,0,"5,637.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,637.80",INR,2
+10-03-2026 14:08,Demo Agent [TSERD0300101],TSERD0300101,Indigo,LCC,TT10HC0007,ARDUMMY4322132,CrDUMMY4322132,DUMMY4322132,Confirmed,Indesk Booking,UrAdministrator,Adult,NANDHA,A,MAA-BBI-BBI-CCU 30/04/2026-30/04/2026,6E 288-6E 6793,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,30/04/2026-30/04/2026,"4,298.00",0,"1,092.00",0,0,0,0,0,0,0,"5,390.00",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,390.00",INR,2
+10-03-2026 14:09,Summer Travels [TSDEL0300101],TSDEL0300101,Indigo,LCC,TT10HC0008,ARDUMMY57246674,CrDUMMY57246674,DUMMY57246674,Confirmed,Indesk Booking,Hari,Adult,ISMAIL,KUMAR,BLR-HYD 19/04/2026,6E 6067,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,19-04-2026,"2,999.00",0,"1,151.80",0,0,0,0,0,0,0,"4,150.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,150.80",INR,1
+10-03-2026 14:44,Demo Agent [TSERD0300101],TSERD0300101,Indigo,LCC,TT10HC0014,ARDUMMY84570475,CrDUMMY84570475,DUMMY84570475,Confirmed,Indesk Booking,UrAdministrator,Adult,NANDHA,KUMAR,MAA-HYD-HYD-JAI 27/03/2026-27/03/2026,6E 6897-6E 913,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,27/03/2026-27/03/2026,"6,051.00",0,"1,623.00",231.02,0,0,0,0,0,0,"7,442.98",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"7,674.00",INR,2
+10-03-2026 15:18,Demo Agent [TSERD0300101],TSERD0300101,Indigo,LCC,TT10HC0016,ARDUMMY41945534,CrDUMMY41945534,DUMMY41945534,Confirmed,Indesk Booking,Demo,Adult,KARUPPA,SAMY,DEL-NMI 13/04/2026,6E 955,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,13-04-2026,"4,200.00",0,"1,033.80",194,0,0,0,0,0,0,"5,039.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,233.80",INR,1
+10-03-2026 15:26,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,Indigo,LCC,TT10HC0018,ARDUMMY9375017,CrDUMMY9375017,DUMMY9375017,Confirmed,Indesk Booking,UrAdministrator,Adult,ESAKI,RAJ,NMI-DEL 28/03/2026,6E 5192,OneWay,Domestic,Topup Account,P,RSMAA040163101,6E,28-03-2026,"4,325.00",0,"1,303.00",196.5,0,0,0,0,0,0,"5,431.50",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,628.00",INR,1
+10-03-2026 15:33,Demo Agent [TSERD0300101],TSERD0300101,Indigo,LCC,TT10HC0020,ARDUMMY64707578,CrDUMMY64707578,DUMMY64707578,Confirmed,Indesk Booking,Demo,Adult,RAKESH,KUMAR,DEL-NAG-NAG-BOM 10/04/2026-10/04/2026,6E 6018-6E 6145,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,10/04/2026-10/04/2026,"5,170.00",0,904.8,213.4,0,0,0,0,0,0,"5,861.40",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,074.80",INR,2
+10-03-2026 15:40,Summer Travels [TSDEL0300101],TSDEL0300101,Indigo,LCC,TT10HC0022,ARDUMMY11976464,CrDUMMY11976464,DUMMY11976464,Confirmed,Indesk Booking,Demo,Adult,KEERTHI,JAIN,BOM-BLR-BLR-MAA 16/04/2026-16/04/2026,6E 5092-6E 6208,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,16/04/2026-16/04/2026,"4,100.00",0,817.8,192,0,0,0,0,0,0,"4,725.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,917.80",INR,2
+10-03-2026 15:40,Niche Focus [TSMAA0300107],TSMAA0300107,Indigo,LCC,TT10HC0023,ARDUMMY98591417,CrDUMMY98591417,DUMMY98591417,Confirmed,Indesk Booking,muthulakshmi0407.sts@gmail.com,Adult,MUTHULAKSHMI,SUNDAR,BOM-HDO 15/03/2026,6E 980,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,15-03-2026,"4,436.00",0,770,198.72,0,0,0,0,0,0,"5,007.28",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,206.00",INR,1
+10-03-2026 15:41,RMR Trip Travel [TSCOK0300101],TSCOK0300101,Indigo,LCC,TT10HC0024,ARDUMMY44272821,CrDUMMY44272821,DUMMY44272821,Confirmed,Indesk Booking,Kulasekar,Adult,KULASEKAR,R,HYD-RKT 17/04/2026,6E 1495,OneWay,International,Topup Account,J,RSMAA040163101,6E,17-04-2026,"11,260.00",0,"3,809.80",335.2,0,0,0,0,0,0,"14,734.60",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"15,069.80",INR,1
+10-03-2026 15:42,fly travels [TSMAA0300104],TSMAA0300104,Indigo,LCC,TT10HC0025,ARDUMMY16619260,CrDUMMY16619260,DUMMY16619260,Confirmed,Indesk Booking,Demo,Adult,RAMANUJAM,MOHAN,NMI-MAA 10/03/2026,6E 899,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,10-03-2026,"3,741.00",0,"1,219.80",184.82,0,0,0,0,0,0,"4,775.98",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,960.80",INR,1
+10-03-2026 15:42,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0026,ARDUMMY1798113,CrDUMMY1798113,DUMMY1798113,Confirmed,Indesk Booking,Harish,Adult,LEYANA,LEYANA,BLR-IXM-IXM-HYD 26/04/2026-26/04/2026,6E 7171-6E 6023,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,26/04/2026-26/04/2026,"2,999.00",0,"1,203.80",169.98,0,0,0,0,0,0,"4,832.82",0,0,0,800,BC API,0,0,800,0,0,0,0,0,0,0,0,0,"5,002.80",INR,2
+10-03-2026 15:46,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0029,ARDUMMY28271624,CrDUMMY28271624,DUMMY28271624,Confirmed,Indesk Booking,Harish,Adult,NANDHA,KUMAR,JAI-DED-DED-DEL 30/04/2026-30/04/2026,6E 7274-6E 6227,OneWay,Domestic,Topup Account,P-L,RSMAA040163101,6E,30/04/2026-30/04/2026,"7,406.00",0,"1,986.00",258.12,0,0,0,0,0,0,"9,133.88",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"9,392.00",INR,6
+10-03-2026 15:46,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0029,ARDUMMY28271624,CrDUMMY28271624,DUMMY28271624,Confirmed,Indesk Booking,Harish,Child,KRISHNA,KUMAR,JAI-DED-DED-DEL 30/04/2026-30/04/2026,6E 7274-6E 6227,OneWay,Domestic,Topup Account,P-L,RSMAA040163101,6E,30/04/2026-30/04/2026,"7,406.00",0,"1,986.00",258.12,0,0,0,0,0,0,"9,133.88",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"9,392.00",INR,6
+10-03-2026 15:46,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0029,ARDUMMY28271624,CrDUMMY28271624,DUMMY28271624,Confirmed,Indesk Booking,Harish,Infant,KULA,KUMAR,JAI-DED-DED-DEL 30/04/2026-30/04/2026,6E 7274-6E 6227,OneWay,Domestic,Topup Account,P-L,RSMAA040163101,6E,30/04/2026-30/04/2026,"1,750.00",0,0,0,0,0,0,0,0,0,"1,750.00",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"1,750.00",INR,6
+10-03-2026 15:48,AgentAirOps [TSMAA0300105],TSMAA0300105,Indigo,LCC,TT10HC0031,ARDUMMY37607089,CrDUMMY37607089,DUMMY37607089,Confirmed,Indesk Booking,Rajlakshmi,Adult,MUTHULAKSHMI,SUNDAR,BOM-NAG-NAG-DEL 11/03/2026-11/03/2026,6E 6235-6E 6618,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,11/03/2026-11/03/2026,"5,139.00",0,923,212.78,0,0,0,0,0,0,"5,849.22",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,062.00",INR,2
+10-03-2026 15:49,fly travels [TSMAA0300104],TSMAA0300104,Indigo,LCC,TT10HC0032,ARDUMMY27729252,CrDUMMY27729252,DUMMY27729252,Confirmed,Indesk Booking,Rajlakshmi,Adult,GOWRI,SHANKAR,DEL-RPR-RPR-MAA 14/04/2026-14/04/2026,6E 734-6E 2002,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,14/04/2026-14/04/2026,"5,452.00",0,818,219.04,0,0,0,0,0,0,"6,050.96",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,270.00",INR,2
+10-03-2026 15:53,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0035,ARDUMMY6167417,CrDUMMY6167417,DUMMY6167417,Confirmed,Indesk Booking,Rajlakshmi,Adult,NARAYANI,SHANKAR,HYD-GOI-GOI-BLR 15/04/2026-15/04/2026,6E 6329-6E 6557,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,15/04/2026-15/04/2026,"2,999.00",0,"1,428.00",169.98,0,0,0,0,0,0,"4,257.02",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,427.00",INR,2
+10-03-2026 15:53,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0037,ARDUMMY96430317,CrDUMMY96430317,DUMMY96430317,Confirmed,Indesk Booking,Harish,Adult,CHERAN,KUMAR,PNQ-IDR-IDR-AMD 23/04/2026-23/04/2026,6E 6191-6E 7168,RoundTrip,Domestic,Topup Account,J-J,RSMAA040163101,6E,23/04/2026-23/04/2026,"3,065.00",0,"1,004.00",171.3,0,0,0,0,0,0,"3,897.70",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,069.00",INR,2
+10-03-2026 15:54,Niranj4n Agentt [TSMAA0300108],TSMAA0300108,Indigo,LCC,TT10HC0039,ARDUMMY76252921,CrDUMMY76252921,DUMMY76252921,Confirmed,Indesk Booking,Niran7an,Adult,SARAN,RAJ,DEL-LKO-LKO-HYD 20/05/2026-20/05/2026,6E 5161-6E 6166,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,20/05/2026-20/05/2026,"4,769.00",0,784,205.38,0,0,0,0,0,0,"5,347.62",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,553.00",INR,2
+10-03-2026 15:56,AgentAirOps [TSMAA0300105],TSMAA0300105,Indigo,LCC,TT10HC0041,ARDUMMY48615917,CrDUMMY48615917,DUMMY48615917,Confirmed,Indesk Booking,Rajlakshmi,Adult,KUMAR,SUNDAR,MAA-NMI 20/03/2026,6E 898,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,20-03-2026,"3,767.00",0,"1,332.00",185.34,0,0,0,0,0,0,"4,913.66",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,099.00",INR,1
+10-03-2026 15:56,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0042,ARDUMMY10548972,CrDUMMY10548972,DUMMY10548972,Confirmed,Indesk Booking,Rajlakshmi,Adult,RADHA,KRISHNA,BLR-MAA 22/04/2026,6E 904,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,22-04-2026,"2,486.00",0,"1,114.00",159.72,0,0,0,0,0,0,"3,440.28",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"3,600.00",INR,1
+10-03-2026 16:02,Niranj4n Agentt [TSMAA0300108],TSMAA0300108,Indigo,LCC,TT10HC0044,ARDUMMY98359830,CrDUMMY98359830,DUMMY98359830,Confirmed,Indesk Booking,Niran7an,Adult,NIRANTHARI,NIRANTHARI,DXB-DEL 29/04/2026,6E 1462,OneWay,International,Topup Account,Q,RSMAA040163101,6E,29-04-2026,"7,389.00",0,"3,679.80",257.78,0,0,0,0,0,0,"10,811.02",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"11,068.80",INR,1
+10-03-2026 16:03,TravelFreez [TSMAA0300106],TSMAA0300106,Indigo,LCC,TT10HC0045,ARDUMMY10330040,CrDUMMY10330040,DUMMY10330040,Confirmed,Indesk Booking,Harish,Adult,CATHERIN,FF,MAA-BBI-BBI-CCU 20/04/2026-20/04/2026,6E 143-6E 7117,OneWay,Domestic,Topup Account,R-R,RSMAA040163101,6E,20/04/2026-20/04/2026,"4,298.00",0,"1,103.80",195.96,0,0,0,0,0,0,"5,205.84",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,401.80",INR,2
+10-03-2026 16:11,AgentAirOps [TSMAA0300105],TSMAA0300105,Indigo,LCC,TT10HC0049,ARDUMMY78329759,CrDUMMY78329759,DUMMY78329759,Confirmed,Indesk Booking,Rajlakshmi,Adult,JYOTHIGA,SUNDAR,BOM-AMD 18/03/2026,6E 5268,OneWay,Domestic,Topup Account,J,RSMAA040163101,6E,18-03-2026,"4,477.00",0,772,199.54,0,0,0,0,0,0,"5,049.46",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,249.00",INR,1
+10-03-2026 16:17,UrTravelAgent [TSAJJ0300101],TSAJJ0300101,Indigo,LCC,TT10HC0051,ARDUMMY53884667,CrDUMMY53884667,DUMMY53884667,Confirmed,Indesk Booking,UrAdministrator,Adult,DHANA,RAJ,BOM-DEL 10/03/2026,6E 2007,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,10-03-2026,"5,329.00",0,880,216.58,0,0,0,0,0,0,"5,992.42",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,209.00",INR,1
+10-03-2026 16:28,AgentAirOps [TSMAA0300105],TSMAA0300105,Indigo,LCC,TT10HC0053,ARDUMMY54210965,CrDUMMY54210965,DUMMY54210965,Confirmed,Indesk Booking,Rajlakshmi,Adult,PRASANA,KUMAR,MAA-HYD 24/03/2026,6E 495,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,24-03-2026,"3,500.00",0,"1,000.00",180,0,0,0,0,0,0,"4,320.00",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,500.00",INR,1
+10-03-2026 16:40,Demo Agent [TSERD0300101],TSERD0300101,Indigo,LCC,TT10HC0054,ARDUMMY52260371,CrDUMMY52260371,DUMMY52260371,Confirmed,Indesk Booking,UrAdministrator,Adult,NANDHA,KUMAR,MAA-BLR 29/04/2026,6E 796,OneWay,Domestic,Topup Account,R,RSMAA040163101,6E,29-04-2026,"2,546.00",0,952,160.92,0,0,0,0,0,0,"3,337.08",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"3,498.00",INR,1
+,,,Indigo,,,,,,,,,,,,,,,,,,,,,"1,37,279.00",0,"38,507.00","4,966.20",0,0,0,0,0,0,"1,97,219.80",0,0,0,"26,400.00",,0,0,"1,200.00","24,200.00",550,0,0,0,0,0,0,0,"2,02,186.00",,57
+,,,Spice Jet,,,,,,,,,,,,,,,,,,,,,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,,0,0,0,0,0,0,0,0,0,0,0,0,0,,0
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Spice Jet,LCC,TT10HC0004,ARDUMMY30792032,CrDUMMY30792032,DUMMY30792032,Confirmed,Indesk Booking,Harish,Adult,NAVEEN,KUMAR,BLR-DEL 10/04/2026,SG 529,RoundTrip,Domestic,Topup Account,U,RSMAA040163101,SG,10-04-2026,"5,300.00",0,"1,385.80",0,0,0,0,0,0,0,"6,685.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,685.80",INR,3
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Spice Jet,LCC,TT10HC0004,ARDUMMY30792032,CrDUMMY30792032,DUMMY30792032,Confirmed,Indesk Booking,Harish,Adult,PRAVEEN,KUMAR,BLR-DEL 10/04/2026,SG 529,RoundTrip,Domestic,Topup Account,U,RSMAA040163101,SG,10-04-2026,"5,300.00",0,"1,385.80",0,0,0,0,0,0,0,"6,685.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,685.80",INR,3
+10-03-2026 13:49,TravelFreez [TSMAA0300106],TSMAA0300106,Spice Jet,LCC,TT10HC0004,ARDUMMY30792032,CrDUMMY30792032,DUMMY30792032,Confirmed,Indesk Booking,Harish,Child,SANTHOSH,KUMAR,BLR-DEL 10/04/2026,SG 529,RoundTrip,Domestic,Topup Account,U,RSMAA040163101,SG,10-04-2026,"5,300.00",0,"1,385.80",0,0,0,0,0,0,0,"6,685.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"6,685.80",INR,3
+10-03-2026 16:09,Niranj4n Agentt [TSMAA0300108],TSMAA0300108,Spice Jet,LCC,TT10HC0047,ARDUMMY89110188,CrDUMMY89110188,DUMMY89110188,Confirmed,Indesk Booking,Niran7an,Adult,KULA,SEKAR,BOM-MAA 10/03/2026,SG 678,OneWay,Domestic,Topup Account,I,RSMAA040163101,SG,10-03-2026,"3,400.00",0,814.8,0,0,0,0,0,0,0,"4,214.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"4,214.80",INR,1
+10-03-2026 16:47,AgentAirOps [TSMAA0300105],TSMAA0300105,Spice Jet,LCC,TT10HC0056,ARDUMMY693571,CrDUMMY693571,DUMMY693571,Confirmed,Indesk Booking,Rajlakshmi,Adult,MUTHULAKSHMI,S,BOM-DEL 12/03/2026,SG 106,OneWay,Domestic,Topup Account,I,RSMAA040163101,SG,12-03-2026,"4,850.00",0,952.8,0,0,0,0,0,0,0,"5,802.80",0,0,0,0,BC API,0,0,0,0,0,0,0,0,0,0,0,0,"5,802.80",INR,1
+10-03-2026 17:13,AgentAirOps [TSMAA0300105],TSMAA0300105,Spice Jet,LCC,TT10HC0056,ARDUMMY693571,CrDUMMY693571,,Confirmed,SSR Updation,Demo,,,,BOM -DEL 12/03/2026,SG 106,OneWay,,Topup Account,,RSMAA040163101,SG,12-03-2026,0,0,0,0,0,0,0,0,0,0,103,0,0,0,103,BC API,0,0,100,3,0,0,0,13,0,0,0,0,116,INR,0
+,,,Spice Jet,,,,,,,,,,,,,,,,,,,,,"24,150.00",0,"5,925.00",0,0,0,0,0,0,0,"30,178.00",0,0,0,103,,0,0,100,3,0,0,0,13,0,0,0,0,"30,191.00",,11
+,,,,,,,,,,,,,,,,,,,,,,,,"2,75,137.00","9,372.00","75,644.00","6,754.65",0,118,450,0,0,0,"4,03,859.35",0,290,0,"49,603.00",,0,0,"1,550.00","43,703.00","3,200.00",0,0,13,0,0,0,0,"4,10,627.00",,108
+</script>
+
+<script>
+// ============ STATE ============
+const fmtINR = n => '₹' + (Math.round(Number(n)||0)).toLocaleString('en-IN');
+const num = v => { if(v===null||v===undefined||v==='') return 0; const s=String(v).replace(/,/g,'').trim(); const n=parseFloat(s); return isNaN(n)?0:n; };
+const parseDate = s => {
+  if(!s) return null; s=String(s).trim();
+  // dd-mm-yyyy [hh:mm] or dd/mm/yyyy
+  const m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
+  if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+  const d = new Date(s); return isNaN(d)?null:d;
+};
+const fmtDate = d => d?(`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`):'–';
+const fmtDT = d => d?(fmtDate(d)+', '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0')+':'+String(d.getSeconds()).padStart(2,'0')):'–';
+
+let RAW = []; // all rows (booking-level only — skip airline subtotal rows)
+let LAST_UPLOAD = new Date();
+let charts = {};
+let currentPage = 1, pageSize = 25;
+let dPage=1, listPage=1;
+let drillCtx = null;
+
+// Airline code → name mapping (for icons/colors)
+const AIRLINE_COLORS = ['#2563eb','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+
+// ============ INGEST ============
+function loadCsvText(text){
+  const parsed = Papa.parse(text.trim(), {header:true, skipEmptyLines:true});
+  const rows = parsed.data.filter(r => r['Booked Date'] && String(r['Booked Date']).trim()!=='' && r['Name'] && String(r['Name']).trim()!=='');
+  RAW = rows.map((r,i) => normalize(r,i));
+  LAST_UPLOAD = new Date();
+  populateFilters();
+  renderAll();
+  toast('Loaded '+RAW.length+' bookings');
+}
+
+function normalize(r, idx){
+  const bookedDate = parseDate(r['Booked Date']);
+  // Pull system PNR (preferred) else any PNR
+  const pnr = r['SYSTEM PNR'] || r['BACKEND PNR'] || r['GDS PNR'] || ('TT'+String(10000+idx).padStart(6,'0'));
+  // Extract sector & travel date from "DEL-MAA 08/06/2026" or multi-segment
+  const secRaw = r['SEC'] || '';
+  const sectorMatch = secRaw.match(/^([A-Z\-]+)\s+(.+)$/);
+  const sector = sectorMatch ? sectorMatch[1] : secRaw;
+  const travelDate = sectorMatch ? sectorMatch[2] : (r['Date of Travel']||'');
+
+  // Pax count derived from First Name (single passenger per row in CSV); use SegmentNo otherwise. We'll treat each row as 1 booking with pax based on category counts in pax mix; group later
+  const paxCat = (r['category']||'').toUpperCase().includes('LCC')?null:(r['a/c/i']||'Adult');
+
+  return {
+    bookedDate, bookedDateStr: r['Booked Date'],
+    agencyName: r['Name']||'',
+    cid: r['CID']||'',
+    airname: r['Airname']||'',
+    airCode: r['Airline Code']||'',
+    fareCat: r['category']||'', // FSC/LCC
+    pnr,
+    systemPnr: r['SYSTEM PNR']||'',
+    backendPnr: r['BACKEND PNR']||'',
+    gdsPnr: r['GDS PNR']||'',
+    status: r['STATUS']||'Confirmed',
+    bookType: r['book type']||'',
+    bookedBy: r['booked by']||'',
+    paxCategory: r['a/c/i']||'Adult',
+    firstName: r['First Name']||'',
+    lastName: r['Last Name']||'',
+    sector, travelDate,
+    flightNo: r['Flight No']||'',
+    trip: r['TRIP']||'',
+    travelType: r['Travel Type']||'Domestic',
+    payMode: r['Mode of payment']||'',
+    klass: r['Class']||'',
+    officeId: r['OFFICE ID SUPPLIER']||'',
+    bfare: num(r['BFARE']), yq: num(r['YQ Fare']), otherTax: num(r['Other Taxes']),
+    commission: num(r['COMMISSION']), incentive: num(r['Incentive']),
+    sctax: num(r['SC TAX']), sf: num(r['SF']), gstSf: num(r['GST On SF']),
+    agentPenalty: num(r['Agent Penalty']), cancelMarkup: num(r['Cancellation Markup']),
+    netAmount: num(r['Net Amount']),
+    rescheduleMarkup: num(r['Reschedule Markup']),
+    markup: num(r['Markup']), hiddenMarkup: num(r['Hidden Markup']),
+    ssrAmount: num(r['SSR Amount']),
+    supplier: r['Supplier']||'',
+    k3: num(r['K3']), txnFee: num(r['Transaction Fee']),
+    meals: num(r['Meals Amount']), baggage: num(r['Baggage Amount']),
+    seat: num(r['Seat Amount']), wchr: num(r['WCHR Amount']),
+    oktbd: num(r['OKTBD Amount']),
+    ssrMarkup: num(r['SSR Markup']),
+    rescheduleCharges: num(r['Reschedule Charges']),
+    supplierPenalty: num(r['Supplier Penalty']),
+    plb: num(r['PLB']), specialMarkup: num(r['Special Markup']),
+    gross: num(r['Gross Amount']),
+    currency: r['Currency']||'INR',
+    segments: parseInt(r['No of Segment'])||1,
+  };
+}
+
+// ============ FILTERS ============
+function activeFilters(){
+  return {
+    date: document.getElementById('fDate').value,
+    trip: document.getElementById('fTrip').value,
+    cat: document.getElementById('fCat').value,
+    status: document.getElementById('fStatus').value,
+    airline: document.getElementById('fAirline').value,
+    agency: document.getElementById('fAgency').value,
+    search: (document.getElementById('fSearch').value||'').toLowerCase().trim(),
+  };
+}
+function applyFilters(rows){
+  const f = activeFilters();
+  let out = rows.slice();
+  if(f.date!=='all'){
+    const days = parseInt(f.date);
+    const cutoff = new Date(); cutoff.setDate(cutoff.getDate()-days);
+    // Use latest booked date as anchor when there are no recent bookings
+    const maxD = rows.reduce((m,r)=>r.bookedDate&&(!m||r.bookedDate>m)?r.bookedDate:m,null);
+    const anchor = maxD || new Date();
+    const c = new Date(anchor); c.setDate(c.getDate()-days);
+    out = out.filter(r => r.bookedDate && r.bookedDate >= c);
+  }
+  if(f.trip!=='all') out = out.filter(r => r.travelType===f.trip);
+  if(f.cat!=='all') out = out.filter(r => (r.fareCat||'').toUpperCase()===f.cat);
+  if(f.status!=='all') out = out.filter(r => r.status===f.status);
+  if(f.airline!=='all') out = out.filter(r => r.airname===f.airline);
+  if(f.agency!=='all') out = out.filter(r => r.cid===f.agency);
+  if(f.search){
+    const s = f.search;
+    out = out.filter(r =>
+      (r.pnr||'').toLowerCase().includes(s) ||
+      (r.systemPnr||'').toLowerCase().includes(s) ||
+      (r.backendPnr||'').toLowerCase().includes(s) ||
+      (r.gdsPnr||'').toLowerCase().includes(s) ||
+      (r.firstName+' '+r.lastName).toLowerCase().includes(s) ||
+      (r.agencyName||'').toLowerCase().includes(s) ||
+      (r.bookedBy||'').toLowerCase().includes(s)
+    );
+  }
+  return out;
+}
+
+function populateFilters(){
+  const airs=[...new Set(RAW.map(r=>r.airname).filter(Boolean))].sort();
+  const ags=[...new Map(RAW.map(r=>[r.cid,r.agencyName])).entries()].filter(x=>x[0]).sort((a,b)=>a[1].localeCompare(b[1]));
+  const airSel=document.getElementById('fAirline');
+  airSel.innerHTML='<option value="all">All airlines</option>'+airs.map(a=>`<option>${a}</option>`).join('');
+  const agSel=document.getElementById('fAgency');
+  agSel.innerHTML='<option value="all">All agencies</option>'+ags.map(([cid,n])=>`<option value="${cid}">${escape(n)}</option>`).join('');
+}
+function resetFilters(){
+  ['fDate','fTrip','fCat','fStatus','fAirline','fAgency','fSearch'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el.tagName==='SELECT') el.selectedIndex = id==='fDate'?2:0;
+    else el.value='';
+  });
+  renderAll();
+}
+
+// ============ AGGREGATIONS ============
+function aggregate(rows){
+  const a = {gross:0,net:0,bfare:0,markup:0,hiddenMarkup:0,specialMarkup:0,cancelMarkup:0,rescheduleMarkup:0,ssrMarkup:0,
+    commission:0,incentive:0,plb:0,
+    meals:0,baggage:0,seat:0,wchr:0,oktbd:0,ssrAmount:0,
+    txnFee:0,yq:0,otherTax:0,k3:0,
+    bookings:rows.length, segments:0, pax:rows.length,
+    adult:0,child:0,infant:0,
+    confirmed:0,cancelled:0,
+    domestic:0,international:0,
+    fsc:0,lcc:0
+  };
+  rows.forEach(r=>{
+    a.gross+=r.gross; a.net+=r.netAmount; a.bfare+=r.bfare;
+    a.markup+=r.markup; a.hiddenMarkup+=r.hiddenMarkup; a.specialMarkup+=r.specialMarkup;
+    a.cancelMarkup+=r.cancelMarkup; a.rescheduleMarkup+=r.rescheduleMarkup; a.ssrMarkup+=r.ssrMarkup;
+    a.commission+=r.commission; a.incentive+=r.incentive; a.plb+=r.plb;
+    a.meals+=r.meals; a.baggage+=r.baggage; a.seat+=r.seat; a.wchr+=r.wchr; a.oktbd+=r.oktbd; a.ssrAmount+=r.ssrAmount;
+    a.txnFee+=r.txnFee; a.yq+=r.yq; a.otherTax+=r.otherTax; a.k3+=r.k3;
+    a.segments+=r.segments;
+    const c=(r.paxCategory||'Adult').toLowerCase();
+    if(c.startsWith('a')) a.adult++; else if(c.startsWith('c')) a.child++; else if(c.startsWith('i')) a.infant++; else a.adult++;
+    if(r.status==='Confirmed') a.confirmed++; else if(r.status==='Cancelled') a.cancelled++;
+    if(r.travelType==='Domestic') a.domestic++; else if(r.travelType==='International') a.international++;
+    if((r.fareCat||'').toUpperCase()==='FSC') a.fsc++; else if((r.fareCat||'').toUpperCase()==='LCC') a.lcc++;
+  });
+  a.totalMarkup = a.markup+a.hiddenMarkup+a.specialMarkup+a.cancelMarkup+a.rescheduleMarkup+a.ssrMarkup;
+  a.earnings = a.commission+a.incentive+a.plb;
+  a.avgTicket = a.bookings? a.gross/a.bookings : 0;
+  return a;
+}
+
+function groupBy(rows, keyFn, nameFn){
+  const m=new Map();
+  rows.forEach(r=>{
+    const k=keyFn(r); if(!k) return;
+    if(!m.has(k)) m.set(k,{key:k,name:nameFn(r),rows:[]});
+    m.get(k).rows.push(r);
+  });
+  return [...m.values()].map(g=>({...g,agg:aggregate(g.rows)})).sort((a,b)=>b.agg.gross-a.agg.gross);
+}
+
+// ============ RENDER ============
+function renderAll(){
+  const filtered = applyFilters(RAW);
+  const a = aggregate(filtered);
+  document.getElementById('metaSub').textContent = `${a.bookings} bookings · ${a.pax} passengers in current view`;
+  document.getElementById('lastUp').textContent = 'Last upload · '+fmtDT(LAST_UPLOAD);
+  document.getElementById('kGross').textContent = fmtINR(a.gross);
+  document.getElementById('kNet').textContent = fmtINR(a.net);
+  document.getElementById('kMarkup').textContent = fmtINR(a.totalMarkup);
+  document.getElementById('kEarn').textContent = fmtINR(a.earnings);
+  document.getElementById('kAvg').textContent = fmtINR(a.avgTicket);
+  document.getElementById('kBkg').textContent = a.bookings;
+  document.getElementById('kPax').textContent = a.pax;
+  document.getElementById('kPaxMix').textContent = `${a.adult}/${a.child}/${a.infant}`;
+  document.getElementById('kSeg').textContent = a.segments;
+  document.getElementById('kStatus').textContent = `${a.confirmed} / ${a.cancelled}`;
+
+  drawTrend('chTrend', filtered);
+  drawDoughnut('chTrip', ['Domestic','International'], [a.domestic,a.international], ['#2563eb','#10b981']);
+  drawDoughnut('chCat', ['LCC','FSC'], [a.lcc,a.fsc], ['#10b981','#f59e0b']);
+  drawMarkup('chMarkup', a);
+  drawAnc('chAnc', a);
+
+  renderTopList('topAgencies', groupBy(filtered, r=>r.cid, r=>r.agencyName).slice(0,8), g=>showDrill('agency',g.key,g.name));
+  renderTopList('topAirlines', groupBy(filtered, r=>r.airCode||r.airname, r=>r.airname).slice(0,8), g=>showDrill('airline',g.key,g.name));
+  renderTopList('topAgents', groupBy(filtered, r=>r.bookedBy, r=>r.bookedBy).slice(0,8), g=>showDrill('agent',g.key,g.name));
+
+  renderRecent(filtered);
+}
+
+function renderTopList(elId, groups, onClick){
+  const el=document.getElementById(elId);
+  if(!groups.length){el.innerHTML='<div class="empty">No data</div>';return;}
+  el.innerHTML = groups.map((g,i)=>`
+    <div class="listrow" data-i="${i}">
+      <div><div class="l-name">${escape(g.name||g.key)}</div><div class="l-sub">${g.agg.bookings} bookings · ${g.agg.pax} pax</div></div>
+      <div><div class="l-val">${fmtINR(g.agg.gross)}</div><div class="l-earn">+${fmtINR(g.agg.earnings)} earn</div></div>
+    </div>`).join('');
+  [...el.querySelectorAll('.listrow')].forEach(row=>{
+    row.onclick=()=>onClick(groups[+row.dataset.i]);
+  });
+}
+
+function renderRecent(rows){
+  const sorted = rows.slice().sort((a,b)=>(b.bookedDate||0)-(a.bookedDate||0));
+  document.getElementById('recCount').textContent = sorted.length;
+  const total = Math.max(1, Math.ceil(sorted.length/pageSize));
+  if(currentPage>total) currentPage=1;
+  const slice = sorted.slice((currentPage-1)*pageSize, currentPage*pageSize);
+  const tbody = document.querySelector('#tblRecent tbody');
+  tbody.innerHTML = slice.map(r=>rowHtml(r)).join('') || `<tr><td colspan="9" class="empty">No bookings</td></tr>`;
+  [...tbody.querySelectorAll('tr[data-pnr]')].forEach(tr=>tr.onclick=()=>openBooking(tr.dataset.pnr));
+  renderPager('pager', currentPage, total, p=>{currentPage=p; renderRecent(rows);});
+}
+
+function rowHtml(r){
+  const sb = r.status==='Confirmed'?'b-ok':(r.status==='Cancelled'?'b-no':'b-other');
+  return `<tr data-pnr="${escape(r.pnr)}">
+    <td>${fmtDate(r.bookedDate)}</td>
+    <td><a>${escape(r.pnr)}</a></td>
+    <td>${escape(r.agencyName)}</td>
+    <td>${escape(r.airname)} · ${escape(r.flightNo)}</td>
+    <td>${escape(r.sector)} ${escape(r.travelDate)}</td>
+    <td>1</td>
+    <td>${fmtINR(r.gross)}</td>
+    <td>${fmtINR(r.markup+r.hiddenMarkup+r.specialMarkup+r.cancelMarkup+r.rescheduleMarkup+r.ssrMarkup)}</td>
+    <td><span class="badge ${sb}">${escape(r.status)}</span></td>
+  </tr>`;
+}
+
+function renderPager(elId, page, total, cb){
+  const el=document.getElementById(elId);
+  el.innerHTML = `<button ${page<=1?'disabled':''} data-act="prev">Prev</button><span>Page ${page} / ${total}</span><button ${page>=total?'disabled':''} data-act="next">Next</button>`;
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>cb(b.dataset.act==='prev'?page-1:page+1));
+}
+
+// ============ CHARTS ============
+function destroy(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+function drawTrend(id, rows){
+  destroy(id);
+  // Group by date
+  const byDay=new Map();
+  rows.forEach(r=>{
+    if(!r.bookedDate) return;
+    const k = r.bookedDate.toISOString().slice(0,10);
+    if(!byDay.has(k)) byDay.set(k,{n:0,g:0});
+    const o=byDay.get(k); o.n++; o.g+=r.gross;
+  });
+  const keys=[...byDay.keys()].sort();
+  const labels=keys.map(k=>k.slice(5));
+  const grossData=keys.map(k=>byDay.get(k).g);
+  const ctx=document.getElementById(id);
+  charts[id]=new Chart(ctx,{type:'line',data:{labels,datasets:[{label:'Gross',data:grossData,borderColor:'#2563eb',backgroundColor:'rgba(37,99,235,.1)',fill:true,tension:.3,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'₹'+(v/1000).toFixed(0)+'k'}}}}});
+}
+function drawDoughnut(id, labels, data, colors){
+  destroy(id);
+  const ctx=document.getElementById(id);
+  charts[id]=new Chart(ctx,{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'bottom'}}}});
+}
+function drawMarkup(id,a){
+  destroy(id);
+  const labels=['Markup','Hidden','Special','Cancellation','Reschedule','SSR'];
+  const data=[a.markup,a.hiddenMarkup,a.specialMarkup,a.cancelMarkup,a.rescheduleMarkup,a.ssrMarkup];
+  const ctx=document.getElementById(id);
+  charts[id]=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:['#2563eb','#8b5cf6','#ec4899','#ef4444','#f59e0b','#10b981']}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{callback:v=>'₹'+v.toLocaleString('en-IN')}}}}});
+}
+function drawAnc(id,a){
+  destroy(id);
+  const labels=['Meals','Baggage','Seat','WCHR','OKTBD','SSR'];
+  const data=[a.meals,a.baggage,a.seat,a.wchr,a.oktbd,a.ssrAmount];
+  const ctx=document.getElementById(id);
+  charts[id]=new Chart(ctx,{type:'bar',data:{labels,datasets:[{data,backgroundColor:'#10b981'}]},
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>'₹'+v.toLocaleString('en-IN')}}}}});
+}
+
+// ============ DRILL DOWN ============
+function showView(v){
+  document.querySelectorAll('section[data-view]').forEach(s=>s.style.display=s.dataset.view===v?'':'none');
+  document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab==='overview'&&v==='overview'||b.dataset.tab===v));
+}
+function showDrill(type,key,name){
+  drillCtx={type,key,name};
+  const filt = applyFilters(RAW).filter(r=>{
+    if(type==='agency') return r.cid===key;
+    if(type==='airline') return (r.airCode||r.airname)===key;
+    if(type==='agent') return r.bookedBy===key;
+    return true;
+  });
+  document.getElementById('drillTitle').textContent = name;
+  document.getElementById('drillSub').textContent = `${type.charAt(0).toUpperCase()+type.slice(1)} · ${filt.length} bookings`;
+  const a=aggregate(filt);
+  document.getElementById('dGross').textContent=fmtINR(a.gross);
+  document.getElementById('dNet').textContent=fmtINR(a.net);
+  document.getElementById('dMarkup').textContent=fmtINR(a.totalMarkup);
+  document.getElementById('dEarn').textContent=fmtINR(a.earnings);
+  document.getElementById('dBkg').textContent=`${a.bookings} · ${a.pax}`;
+  drawTrend('dTrend',filt);
+  document.getElementById('dBreakdown').innerHTML = [
+    ['Base Fare',a.bfare],['YQ Fare',a.yq],['Other Taxes',a.otherTax],['Commission',a.commission],
+    ['Incentive',a.incentive],['PLB',a.plb],['Markup',a.markup],['Hidden Markup',a.hiddenMarkup],
+    ['Cancellation Markup',a.cancelMarkup],['Reschedule Markup',a.rescheduleMarkup],
+    ['SSR',a.ssrAmount],['Meals',a.meals],['Baggage',a.baggage],['Seat',a.seat],
+    ['Transaction Fee',a.txnFee],['K3',a.k3]
+  ].map(([k,v])=>`<div class="bd"><span>${k}</span><b>${fmtINR(v)}</b></div>`).join('');
+  dPage=1; renderDrillTbl(filt);
+  showView('drill');
+}
+function renderDrillTbl(filt){
+  const sorted=filt.slice().sort((a,b)=>(b.bookedDate||0)-(a.bookedDate||0));
+  document.getElementById('dCount').textContent=sorted.length;
+  const total=Math.max(1,Math.ceil(sorted.length/pageSize));
+  if(dPage>total) dPage=1;
+  const slice=sorted.slice((dPage-1)*pageSize,dPage*pageSize);
+  const tbody=document.querySelector('#dTbl tbody');
+  tbody.innerHTML=slice.map(r=>rowHtml(r)).join('')||`<tr><td colspan="9" class="empty">No bookings</td></tr>`;
+  [...tbody.querySelectorAll('tr[data-pnr]')].forEach(tr=>tr.onclick=()=>openBooking(tr.dataset.pnr));
+  renderPager('dPager',dPage,total,p=>{dPage=p;renderDrillTbl(filt);});
+}
+
+// ============ LIST VIEWS ============
+function showList(type){
+  const filtered=applyFilters(RAW);
+  let groups, head, rowFn, title;
+  if(type==='agencies'){
+    title='Agencies'; groups=groupBy(filtered,r=>r.cid,r=>r.agencyName);
+    head=['Agency','CID','Bookings','Pax','Gross','Markup','Earnings'];
+    rowFn=g=>[g.name,g.key,g.agg.bookings,g.agg.pax,fmtINR(g.agg.gross),fmtINR(g.agg.totalMarkup),fmtINR(g.agg.earnings)];
+  } else if(type==='airlines'){
+    title='Airlines'; groups=groupBy(filtered,r=>r.airCode||r.airname,r=>r.airname);
+    head=['Airline','Code','Bookings','Pax','Gross','Markup','Earnings'];
+    rowFn=g=>[g.name,g.key,g.agg.bookings,g.agg.pax,fmtINR(g.agg.gross),fmtINR(g.agg.totalMarkup),fmtINR(g.agg.earnings)];
+  } else if(type==='agents'){
+    title='Booked-by Agents'; groups=groupBy(filtered,r=>r.bookedBy,r=>r.bookedBy);
+    head=['Agent','Bookings','Pax','Gross','Markup','Earnings'];
+    rowFn=g=>[g.name,g.agg.bookings,g.agg.pax,fmtINR(g.agg.gross),fmtINR(g.agg.totalMarkup),fmtINR(g.agg.earnings)];
+  } else { // bookings
+    title='All Bookings'; groups=null;
+    head=['Booked','PNR','Agency','Airline · Flight','Sector','Pax','Gross','Markup','Status'];
+  }
+  document.getElementById('listTitle').textContent=title;
+  document.getElementById('listSub').textContent = (groups?groups.length:filtered.length)+' rows';
+  document.getElementById('listHead').innerHTML='<tr>'+head.map(h=>`<th>${h}</th>`).join('')+'</tr>';
+  const tbody=document.querySelector('#listTbl tbody');
+  if(groups){
+    const total=Math.max(1,Math.ceil(groups.length/pageSize));
+    if(listPage>total) listPage=1;
+    const slice=groups.slice((listPage-1)*pageSize, listPage*pageSize);
+    tbody.innerHTML=slice.map((g,i)=>`<tr data-key="${escape(g.key)}" data-type="${type}">${rowFn(g).map(c=>`<td>${escape(c)}</td>`).join('')}</tr>`).join('')||`<tr><td colspan="${head.length}" class="empty">No data</td></tr>`;
+    [...tbody.querySelectorAll('tr[data-key]')].forEach(tr=>{
+      tr.onclick=()=>{
+        const g=groups.find(x=>x.key===tr.dataset.key);
+        const t=type==='agencies'?'agency':type==='airlines'?'airline':'agent';
+        showDrill(t,g.key,g.name);
+      };
+    });
+    renderPager('listPager',listPage,total,p=>{listPage=p;showList(type);});
+  } else {
+    const sorted=filtered.slice().sort((a,b)=>(b.bookedDate||0)-(a.bookedDate||0));
+    const total=Math.max(1,Math.ceil(sorted.length/pageSize));
+    if(listPage>total) listPage=1;
+    const slice=sorted.slice((listPage-1)*pageSize, listPage*pageSize);
+    tbody.innerHTML=slice.map(r=>rowHtml(r)).join('')||`<tr><td colspan="9" class="empty">No bookings</td></tr>`;
+    [...tbody.querySelectorAll('tr[data-pnr]')].forEach(tr=>tr.onclick=()=>openBooking(tr.dataset.pnr));
+    renderPager('listPager',listPage,total,p=>{listPage=p;showList(type);});
+  }
+  showView('list');
+}
+
+// ============ BOOKING DETAIL ============
+function openBooking(pnr){
+  const r=RAW.find(x=>x.pnr===pnr); if(!r) return;
+  document.getElementById('mTitle').textContent='Booking '+r.pnr;
+  document.getElementById('mSub').textContent=`${r.agencyName} · ${r.airname} ${r.flightNo} · ${r.sector} ${r.travelDate}`;
+  const k=document.getElementById('mKvs');
+  const fields = [
+    ['Booked',fmtDate(r.bookedDate)],['Status',r.status],['Travel Type',r.travelType],['Class',r.klass],
+    ['System PNR',r.systemPnr],['Backend PNR',r.backendPnr],['GDS PNR',r.gdsPnr],
+    ['Passenger',`${r.firstName} ${r.lastName}`],['Pax category',r.paxCategory],['Segments',r.segments],
+    ['Booked By',r.bookedBy],['Pay Mode',r.payMode],['Office ID',r.officeId],['Supplier',r.supplier],
+    ['Base Fare',fmtINR(r.bfare)],['YQ Fare',fmtINR(r.yq)],['Other Taxes',fmtINR(r.otherTax)],['K3',fmtINR(r.k3)],
+    ['Commission',fmtINR(r.commission)],['Incentive',fmtINR(r.incentive)],['PLB',fmtINR(r.plb)],
+    ['Markup',fmtINR(r.markup)],['Hidden Markup',fmtINR(r.hiddenMarkup)],['Special Markup',fmtINR(r.specialMarkup)],
+    ['Cancellation Markup',fmtINR(r.cancelMarkup)],['Reschedule Markup',fmtINR(r.rescheduleMarkup)],
+    ['SSR',fmtINR(r.ssrAmount)],['Meals',fmtINR(r.meals)],['Baggage',fmtINR(r.baggage)],['Seat',fmtINR(r.seat)],
+    ['WCHR',fmtINR(r.wchr)],['OKTBD',fmtINR(r.oktbd)],['Transaction Fee',fmtINR(r.txnFee)],
+    ['Agent Penalty',fmtINR(r.agentPenalty)],['Supplier Penalty',fmtINR(r.supplierPenalty)],
+    ['Net Amount',fmtINR(r.netAmount)],['Gross Amount',fmtINR(r.gross)]
+  ];
+  k.innerHTML = fields.map(([a,b])=>`<div><span>${a}</span><span>${escape(b)}</span></div>`).join('');
+  document.getElementById('modal').classList.add('show');
+}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+
+// ============ EXPORT ============
+function exportCsv(){
+  const rows = applyFilters(RAW);
+  if(!rows.length){toast('No rows to export');return;}
+  const cols = Object.keys(rows[0]).filter(k=>typeof rows[0][k]!=='object'||rows[0][k]===null);
+  const csv = [cols.join(','), ...rows.map(r=>cols.map(c=>JSON.stringify(r[c]??'')).join(','))].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='bookings_export.csv'; a.click();
+}
+
+// ============ UPLOAD ============
+document.getElementById('fileinp').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const ext=f.name.split('.').pop().toLowerCase();
+    if(ext==='xlsx'||ext==='xls'){
+      const wb=XLSX.read(ev.target.result,{type:'binary'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const csv=XLSX.utils.sheet_to_csv(ws);
+      loadCsvText(csv);
+    } else {
+      loadCsvText(ev.target.result);
+    }
+  };
+  if(f.name.endsWith('.xlsx')||f.name.endsWith('.xls')) reader.readAsBinaryString(f);
+  else reader.readAsText(f);
+});
+
+// ============ HELPERS ============
+function escape(s){return String(s??'').replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
+
+// Tabs
+document.querySelectorAll('.tabs button').forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    const t=b.dataset.tab;
+    if(t==='overview') showView('overview');
+    else { listPage=1; showList(t); }
+  };
+});
+
+// Filters change
+document.querySelectorAll('#filters select, #filters input').forEach(el=>{
+  el.addEventListener(el.tagName==='SELECT'?'change':'input', ()=>{currentPage=1;renderAll();});
+});
+
+// Modal close on bg click
+document.getElementById('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal();});
+
+// Boot with embedded sample
+(function boot(){
+  const csv = document.getElementById('sampleCsv').textContent;
+  loadCsvText(csv);
+})();
+</script>
+</body>
+</html>
